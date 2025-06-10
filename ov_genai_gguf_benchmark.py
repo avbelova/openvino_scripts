@@ -3,11 +3,25 @@ import openvino as ov
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import numpy as np
 import time
+import argparse
+from huggingface_hub import hf_hub_download
 
 prompt = 'Why is the Sun yellow?'
-device = "CPU"
+#device = "CPU"
 
-hf_tokenizer = AutoTokenizer.from_pretrained('bartowski/Meta-Llama-3.1-8B-Instruct-GGUF', gguf_file='Meta-Llama-3.1-8B-Instruct-f32.gguf')
+parser = argparse.ArgumentParser()
+parser.add_argument("model_id")
+parser.add_argument("model_file")
+parser.add_argument("device")
+args = parser.parse_args()
+
+model_id = args.model_id
+model_file = args.model_file
+device = args.device
+
+file_path = hf_hub_download(repo_id = model_id, filename = model_file, cache_dir="./models")
+
+hf_tokenizer = AutoTokenizer.from_pretrained(model_id, gguf_file = model_file)
 
 ov_generation_config = ov_genai.GenerationConfig()
 ov_generation_config.max_new_tokens = 30
@@ -20,7 +34,7 @@ tokenization_end = time.perf_counter()
 tokenization_time = [(tokenization_end - tokenization_start) * 1000]
 input_ids, attention_mask = inputs['input_ids'], inputs['attention_mask']
 
-pipe = ov_genai.LLMPipeline("Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf", device)
+pipe = ov_genai.LLMPipeline(file_path, device)
 encoded_result  = pipe.generate(ov.Tensor(input_ids.numpy()), generation_config=ov_generation_config)
 res_string_input_2 = hf_tokenizer.batch_decode([encoded_result.tokens[0]], skip_special_tokens=True)[0]
 print(res_string_input_2)
@@ -29,6 +43,5 @@ print("TTFT: ", perf_metrics.get_ttft().mean)
 second_tokens_durations = (
         np.array(perf_metrics.raw_metrics.m_new_token_times[1:])
         - np.array(perf_metrics.raw_metrics.m_new_token_times[:-1])
-    ).tolist()
-print("Second Token ", second_tokens_durations)
-)
+    )
+print("Other tokens latency", np.mean(second_tokens_durations))
