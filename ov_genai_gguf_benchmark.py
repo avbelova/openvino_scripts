@@ -13,11 +13,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("model_id")
 parser.add_argument("model_file")
 parser.add_argument("device")
+parser.add_argument("iter_num")
 args = parser.parse_args()
 
 model_id = args.model_id
 model_file = args.model_file
 device = args.device
+iter_num = int(args.iter_num)
 
 file_path = hf_hub_download(repo_id = model_id, filename = model_file, cache_dir="./models")
 
@@ -35,13 +37,22 @@ tokenization_time = [(tokenization_end - tokenization_start) * 1000]
 input_ids, attention_mask = inputs['input_ids'], inputs['attention_mask']
 
 pipe = ov_genai.LLMPipeline(file_path, device)
-encoded_result  = pipe.generate(ov.Tensor(input_ids.numpy()), generation_config=ov_generation_config)
-res_string_input_2 = hf_tokenizer.batch_decode([encoded_result.tokens[0]], skip_special_tokens=True)[0]
-print(res_string_input_2)
-perf_metrics = encoded_result.perf_metrics
-print("TTFT: ", perf_metrics.get_ttft().mean)
-second_tokens_durations = (
+ttfts=[]
+ttsts=[]
+for i in range(iter_num):
+    encoded_result  = pipe.generate(ov.Tensor(input_ids.numpy()), generation_config=ov_generation_config)
+    result_string = hf_tokenizer.batch_decode([encoded_result.tokens[0]], skip_special_tokens=True)[0]
+    print(result_string)
+    perf_metrics = encoded_result.perf_metrics
+    ttft = perf_metrics.get_ttft().mean
+    ttfts.append(ttft)
+    print("TTFT: ", ttft)
+    other_tokens_duration = np.mean((
         np.array(perf_metrics.raw_metrics.m_new_token_times[1:])
         - np.array(perf_metrics.raw_metrics.m_new_token_times[:-1])
-    )
-print("Other tokens latency", np.mean(second_tokens_durations))
+    ))
+    print("Other tokens latency", other_tokens_duration)
+    ttsts.append(other_tokens_duration)
+
+print("Average TTFT: ", round(sum(ttfts[1:]) / (len(ttfts) - 1)), "ms")
+print("Average other tokens duration: ", round(sum(ttsts[1:]) / (len(ttsts) - 1)), "ms")
