@@ -7,3 +7,7 @@ Usage:
 ```
 python ov_genai_gguf_benchmark.py <HF model id> <model file> <device (CPU, GPU or NPU)> <number of iterations>
 ```
+Example:
+```
+python ov_genai_gguf_benchmark.py unsloth/Llama-3.2-1B-Instruct-GGUF Llama-3.2-1B-Instruct-F16.gguf CPU 3
+```
